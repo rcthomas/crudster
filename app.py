@@ -174,6 +174,7 @@ def create_application(cls, prefix):
 
 if __name__ == "__main__":
     prefix = os.environ.get("JUPYTERHUB_SERVICE_PREFIX", "/")
+    logging.debug(prefix)
     application = create_application(APIv1, prefix)
     application.listen(8888)
     ioloop.IOLoop.current().start()
