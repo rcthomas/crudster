@@ -1,0 +1,13 @@
+version: '2'
+services:
+    app:
+        build: .
+        container_name: app
+        links:
+            - db:db
+        ports:
+            - 8888:8888
+        restart: always
+    db:
+        container_name: db
+        image: mongo:latest
