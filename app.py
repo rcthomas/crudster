@@ -11,7 +11,9 @@ logging.basicConfig(level=logging.DEBUG)
 
 DATETIME_FORMAT = "%Y-%m-%dT%H:%M:%S"
 
+
 class _JSONEncoder(json.JSONEncoder):
+    """Custom JSON encoder."""
 
     def default(self, obj):
         if isinstance(obj, ObjectId):
@@ -22,16 +24,23 @@ class _JSONEncoder(json.JSONEncoder):
 
 
 class API(web.RequestHandler):
+    """Base API Interface"""
 
     def initialize(self):
+        """Connect to document store"""
+
         self.db = self.settings["db"]
         self.collection = self.db[self.__class__.__name__]
 
     def write_json(self, document):
+        """Format output as JSON"""
+
         self.set_header("Content-Type", "application/json; charset=UTF-8")
         self.write(escape.utf8(json.dumps(document, cls=_JSONEncoder)))
 
     def write_dict(self, *args, **kwargs):
+        """Format dictionary or parameter list as JSON dictionary"""
+
         if args:
             if len(args) == 1 and type(args[0]) is dict:
                 self.write_json(args[0])
@@ -41,6 +50,7 @@ class API(web.RequestHandler):
             self.write_json(kwargs)
 
     def write_error(self, status_code, **kwargs):
+        """Format error as JSON dictionary"""
         if self.settings.get("serve_traceback") and "exc_info" in kwargs:
             self.set_header('Content-Type', 'text/plain')
             for line in traceback.format_exception(*kwargs["exc_info"]):
@@ -51,6 +61,7 @@ class API(web.RequestHandler):
 
 
 class APIv1(API):
+    """API implentation v1."""
 
     @gen.coroutine
     def post(self, document_id):
