@@ -2,7 +2,7 @@
 from datetime import datetime, timedelta
 import logging
 logging.basicConfig(level=logging.DEBUG)
-import sys
+import os
 
 import json
 
@@ -173,10 +173,7 @@ def create_application(cls, prefix):
 
 
 if __name__ == "__main__":
-    try:
-        prefix = sys.argv[1:]
-    except:
-        prefix = "/"
+    prefix = os.environ.get("JUPYTERHUB_SERVICE_PREFIX", "/")
     application = create_application(APIv1, prefix)
     application.listen(8888)
     ioloop.IOLoop.current().start()
