@@ -2,7 +2,6 @@
 from datetime import datetime, timedelta
 import logging
 logging.basicConfig(level=logging.DEBUG)
-import os
 
 import json
 
@@ -162,20 +161,18 @@ class APIv1(API):
             raise web.HTTPError(400)
 
 
-def create_application(cls, prefix):
+def create_application(cls):
     db = motor.motor_tornado.MotorClient("mongodb://db:27017")
     db.drop_database(cls.__name__)
     db = motor.motor_tornado.MotorClient("mongodb://db:27017")[cls.__name__]
     settings = dict(debug=True, serve_traceback=False, db=db)
     return web.Application([
-        (r"{}api/v1/documents/(\w*)".format(prefix), cls),
+        (r"/api/v1/documents/(\w*)", cls),
     ], **settings)
 
 
 if __name__ == "__main__":
-    prefix = os.environ.get("JUPYTERHUB_SERVICE_PREFIX", "/")
-    logging.debug(prefix)
-    application = create_application(APIv1, prefix)
+    application = create_application(APIv1)
     application.listen(8888)
     ioloop.IOLoop.current().start()
 
