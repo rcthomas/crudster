@@ -1,13 +1,13 @@
 
 from datetime import datetime, timedelta
-import logging
-logging.basicConfig(level=logging.DEBUG)
-
 import json
+import logging
 
 from bson import ObjectId
-import motor.motor_tornado
+from motor import motor_tornado
 from tornado import gen, escape, ioloop, web
+
+logging.basicConfig(level=logging.DEBUG)
 
 DATETIME_FORMAT = "%Y-%m-%dT%H:%M:%S"
 
@@ -54,7 +54,7 @@ class APIv1(API):
 
     @gen.coroutine
     def post(self, document_id):
-        """Store document"""
+        """Store new document"""
 
         # API determines document ID, not client.
 
@@ -162,9 +162,9 @@ class APIv1(API):
 
 
 def create_application(cls):
-    db = motor.motor_tornado.MotorClient("mongodb://db:27017")
+    db = motor_tornado.MotorClient("mongodb://db:27017")
     db.drop_database(cls.__name__)
-    db = motor.motor_tornado.MotorClient("mongodb://db:27017")[cls.__name__]
+    db = motor_tornado.MotorClient("mongodb://db:27017")[cls.__name__]
     settings = dict(debug=True, serve_traceback=False, db=db)
     return web.Application([
         (r"/api/v1/documents/(\w*)", cls),
@@ -175,4 +175,3 @@ if __name__ == "__main__":
     application = create_application(APIv1)
     application.listen(8888)
     ioloop.IOLoop.current().start()
-
