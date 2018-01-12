@@ -10,17 +10,12 @@ from tornado import escape, gen, ioloop, web
 
 logging.basicConfig(level=logging.DEBUG)
 
-DATETIME_FORMAT = "%Y-%m-%dT%H:%M:%S"
-
-
 class _JSONEncoder(json.JSONEncoder):
     """Custom JSON encoder."""
 
     def default(self, obj):
         if isinstance(obj, ObjectId):
             return str(obj)
-        elif isinstance(obj, datetime):
-            return obj.strftime(DATETIME_FORMAT)
         return json.JSONEncoder.default(self, obj)
 
 
@@ -32,6 +27,7 @@ class API(web.RequestHandler):
 
         self.db = self.settings["db"]
         self.collection = self.db[self.__class__.__name__]
+        self.index_args = self.settings.get("index_args", list())
 
     def write_json(self, document):
         """Format output as JSON"""
@@ -52,6 +48,7 @@ class API(web.RequestHandler):
 
     def write_error(self, status_code, **kwargs):
         """Format error as JSON dictionary"""
+
         if self.settings.get("serve_traceback") and "exc_info" in kwargs:
             self.set_header('Content-Type', 'text/plain')
             for line in traceback.format_exception(*kwargs["exc_info"]):
@@ -59,6 +56,22 @@ class API(web.RequestHandler):
         else:
             self.write_dict(status_code=status_code, reason=self._reason)
         self.finish()
+
+    def validate_document(self, document):
+        """Validate document before insertion
+
+        Raise web.HTTPError(400) if there is a validation error."""
+
+        pass
+
+    @gen.coroutine
+    def create_indices(self):
+        """Create indices
+
+        This runs during the first POST operation."""
+
+        for (args, kwargs) in self.index_args:
+            yield self.collection.create_index(*args, **kwargs)
 
 
 class APIv1(API):
@@ -77,19 +90,18 @@ class APIv1(API):
 
         document = escape.json_decode(self.request.body)
 
-        # Documents must have expiration date.  Replace properly formatted 
-        # expiration date with datetime version for MongoDB.
+        # Validate document. Newer MongoDB versions support schema validation
+        # but we have this hook here for anything not covered by that.
 
-        try:
-            expires = datetime.strptime(document["expires"], DATETIME_FORMAT)
-            document["expires"] = expires
-        except:
-            raise web.HTTPError(400)
+        self.validate_document(document)
 
         # Insert document.
 
         result = yield self.collection.insert_one(dict(document=document))
-        yield self.collection.create_index("document.expires", expireAfterSeconds=0)
+
+        # Create any indices.
+
+        yield self.create_indices()
 
         # Return inserted document ID for client future reference.
 
@@ -138,14 +150,10 @@ class APIv1(API):
 
         document = escape.json_decode(self.request.body)
 
-        # Documents must have expiration date.  Replace properly formatted 
-        # expiration date with datetime version for MongoDB.
+        # Validate document. Newer MongoDB versions support schema validation
+        # but we have this hook here for anything not covered by that.
 
-        try:
-            expires = datetime.strptime(document["expires"], DATETIME_FORMAT)
-            document["expires"] = expires
-        except:
-            raise web.HTTPError(400)
+        self.validate_document(document)
 
         # Replace document.
 
