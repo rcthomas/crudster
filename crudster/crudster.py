@@ -57,6 +57,18 @@ class API(web.RequestHandler):
             self.write_dict(status_code=status_code, reason=self._reason)
         self.finish()
 
+    def decode_and_validate_document(self):
+        """Extract and validate documents for insert/update
+
+        Decodes document from JSON request body.  Validation here is applied
+        before insertion to MongoDB.  Newer MongoDB versions support schema
+        validation but a hook is included to cover anything on top of that.
+        """
+
+        document = escape.json_decode(self.request.body)
+        self.validate_document(document)
+        return document
+
     def validate_document(self, document):
         """Validate document before insertion
 
@@ -86,17 +98,9 @@ class APIv1(API):
         if document_id:
             raise web.HTTPError(400)
 
-        # Decode document from JSON request body.
+        # Decode, validate, and insert document.
 
-        document = escape.json_decode(self.request.body)
-
-        # Validate document. Newer MongoDB versions support schema validation
-        # but we have this hook here for anything not covered by that.
-
-        self.validate_document(document)
-
-        # Insert document.
-
+        document = self.decode_and_validate_document()
         result = yield self.collection.insert_one(dict(document=document))
 
         # Create any indices.
@@ -146,17 +150,9 @@ class APIv1(API):
         if not document_id:
             raise web.HTTPError(400)
 
-        # Decode document from JSON request body.
+        # Decode, validate, and replace document.
 
-        document = escape.json_decode(self.request.body)
-
-        # Validate document. Newer MongoDB versions support schema validation
-        # but we have this hook here for anything not covered by that.
-
-        self.validate_document(document)
-
-        # Replace document.
-
+        document = self.decode_and_validate_document()
         result = yield self.collection.find_one_and_update(
                 {"_id": ObjectId(document_id)}, 
                 {"$set": dict(document=document)})
