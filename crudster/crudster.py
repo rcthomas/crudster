@@ -19,8 +19,8 @@ class _JSONEncoder(json.JSONEncoder):
         return json.JSONEncoder.default(self, obj)
 
 
-class API(web.RequestHandler):
-    """Base API Interface"""
+class CRUD(web.RequestHandler):
+    """Base CRUD API Interface"""
 
     def initialize(self):
         """Connect to document store"""
@@ -84,10 +84,6 @@ class API(web.RequestHandler):
 
         for (args, kwargs) in self.index_args:
             yield self.collection.create_index(*args, **kwargs)
-
-
-class APIv1(API):
-    """API implentation v1."""
 
     @gen.coroutine
     def post(self, document_id):
@@ -194,9 +190,9 @@ if __name__ == "__main__":
     parser.add_argument("--debug", "-d", help="Return traceback on error", action="store_true")
     parser.add_argument("--mongodb-uri", "-m", help="MongoDB URI", default="mongodb://db:27017")
     parser.add_argument("--port", "-p", help="Listen on this port", default=8888, type=int)
-    parser.add_argument("--api-prefix", "-a", help="API prefix", default="/api/v1/documents/")
+    parser.add_argument("--api-prefix", "-a", help="API prefix", default="/")
     args = parser.parse_args()
 
-    application = create_application(APIv1, args.api_prefix, args.mongodb_uri, args.debug)
+    application = create_application(CRUD, args.api_prefix, args.mongodb_uri, args.debug)
     application.listen(args.port)
     ioloop.IOLoop.current().start()
