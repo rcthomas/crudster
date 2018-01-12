@@ -1,11 +1,12 @@
 
+import argparse
 from datetime import datetime, timedelta
 import json
 import logging
 
 from bson import ObjectId
 from motor import motor_tornado
-from tornado import gen, escape, ioloop, web
+from tornado import escape, gen, ioloop, web
 
 logging.basicConfig(level=logging.DEBUG)
 
@@ -172,17 +173,26 @@ class APIv1(API):
             raise web.HTTPError(400)
 
 
-def create_application(cls):
-    db = motor_tornado.MotorClient("mongodb://db:27017")
-    db.drop_database(cls.__name__)
-    db = motor_tornado.MotorClient("mongodb://db:27017")[cls.__name__]
-    settings = dict(debug=True, serve_traceback=False, db=db)
+def create_application(cls, api_prefix, mongodb_uri, debug):
+    class_name = cls.__name__
+    db = motor_tornado.MotorClient(mongodb_uri)
+    db.drop_database(class_name)
+    db = motor_tornado.MotorClient(mongodb_uri)[class_name]
+    settings = dict(debug=debug, db=db)
     return web.Application([
-        (r"/api/v1/documents/(\w*)", cls),
+        (r"{}(\w*)".format(api_prefix), cls),
     ], **settings)
 
 
 if __name__ == "__main__":
-    application = create_application(APIv1)
-    application.listen(8888)
+
+    parser = argparse.ArgumentParser(formatter_class=argparse.ArgumentDefaultsHelpFormatter)
+    parser.add_argument("--debug", "-d", help="Return traceback on error", action="store_true")
+    parser.add_argument("--mongodb-uri", "-m", help="MongoDB URI", default="mongodb://db:27017")
+    parser.add_argument("--port", "-p", help="Listen on this port", default=8888, type=int)
+    parser.add_argument("--api-prefix", "-a", help="API prefix", default="/api/v1/documents/")
+    args = parser.parse_args()
+
+    application = create_application(APIv1, args.api_prefix, args.mongodb_uri, args.debug)
+    application.listen(args.port)
     ioloop.IOLoop.current().start()
