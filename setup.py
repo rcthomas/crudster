@@ -8,5 +8,5 @@ setup(
         author_email="rcthomas@lbl.gov",
         url="https://github.com/rcthomas/crudster",
         requires=["pymongo (>=3.6.0)", "tornado (>=4.5.3)", "motor (>=1.2.0)"],
-        packages=["crudster"],
+        py_modules=["crudster"],
 )
