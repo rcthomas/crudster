@@ -1,14 +1,16 @@
 
-import argparse
 from datetime import datetime, timedelta
 import json
-import logging
 
 from bson import ObjectId
-from motor import motor_tornado
-from tornado import escape, gen, ioloop, web
 
-logging.basicConfig(level=logging.DEBUG)
+from motor import motor_tornado
+
+from tornado import escape, gen, ioloop, web
+from traitlets.config.application import Application
+from traitlets.config.configurable import Configurable
+from traitlets import Int, Float, Unicode, Bool
+
 
 class _JSONEncoder(json.JSONEncoder):
     """Custom JSON encoder."""
@@ -19,7 +21,7 @@ class _JSONEncoder(json.JSONEncoder):
         return json.JSONEncoder.default(self, obj)
 
 
-class CRUD(web.RequestHandler):
+class CRUDRequestHandler(web.RequestHandler):
     """Base CRUD API Interface"""
 
     def initialize(self):
@@ -173,26 +175,69 @@ class CRUD(web.RequestHandler):
             raise web.HTTPError(400)
 
 
-def create_application(cls, api_prefix, mongodb_uri, debug):
-    class_name = cls.__name__
-    db = motor_tornado.MotorClient(mongodb_uri)
-    db.drop_database(class_name)
-    db = motor_tornado.MotorClient(mongodb_uri)[class_name]
-    settings = dict(debug=debug, db=db)
-    return web.Application([
-        (r"{}(\w*)".format(api_prefix), cls),
-    ], **settings)
+class MongoDB(Configurable):
 
+    database_name = Unicode("crudster",
+        help="MongoDB database name"
+    ).tag(config=True)
+
+    collection_name = Unicode("data",
+        help="MongoDB database name"
+    ).tag(config=True)
+
+    uri = Unicode("mongodb://127.0.0.1:27017",
+        help="MongoDB server URI"
+    ).tag(config=True)
+
+    initialize_database = Bool(False,
+        help="Clear any pre-existing database"
+    ).tag(config=True)
+
+
+class Crudster(Application):
+
+    api_prefix = Unicode("/",
+        help="API URL prefix"
+    ).tag(config=True)
+
+    description = Unicode("Simple CRUD REST API")
+    
+    name = Unicode("crudster")
+
+    port = Int(8888, 
+        help="Request handler port"
+    ).tag(config=True)
+
+    version = Unicode("0.0.1")
+
+    def init_mongodb(self):
+        self.mongodb = MongoDB(config=self.config)
+
+    def initialize(self, *args, **kwargs):
+        super().initialize(*args, **kwargs)
+        self.init_mongodb()
+
+        self.client = motor_tornado.MotorClient(self.mongodb.uri)
+
+        if self.mongodb.initialize_database:
+            self.client.drop_database(self.mongodb.database_name)
+
+        self.db = self.client[self.mongodb.database_name]
+
+        self.settings = dict(db=self.db)
+
+    def start(self):
+        self.app = web.Application([ 
+            (r"{}(\w*)".format(self.api_prefix), CRUDRequestHandler), 
+        ], **self.settings)
+
+
+def main():
+    crudster = Crudster()
+    crudster.initialize()
+    crudster.start()
+    crudster.app.listen(crudster.port)
+    ioloop.IOLoop.current().start()
 
 if __name__ == "__main__":
-
-    parser = argparse.ArgumentParser(formatter_class=argparse.ArgumentDefaultsHelpFormatter)
-    parser.add_argument("--debug", "-d", help="Return traceback on error", action="store_true")
-    parser.add_argument("--mongodb-uri", "-m", help="MongoDB URI", default="mongodb://db:27017")
-    parser.add_argument("--port", "-p", help="Listen on this port", default=8888, type=int)
-    parser.add_argument("--api-prefix", "-a", help="API prefix", default="/")
-    args = parser.parse_args()
-
-    application = create_application(CRUD, args.api_prefix, args.mongodb_uri, args.debug)
-    application.listen(args.port)
-    ioloop.IOLoop.current().start()
+    main()
