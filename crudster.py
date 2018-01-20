@@ -159,9 +159,12 @@ class CRUDRequestHandler(web.RequestHandler):
                 {"uuid": UUID(uuid)}, 
                 {"$set": dict(document=document)})
 
-        # Return empty document.
+        # Return empty document if update succeed.
 
-        self.write_dict()
+        if result:
+            self.write_dict()
+        else:
+            raise web.HTTPError(404)
 
     @gen.coroutine
     def delete(self, uuid):
@@ -176,7 +179,7 @@ class CRUDRequestHandler(web.RequestHandler):
         if result.deleted_count == 1:
             self.write_dict()
         else:
-            raise web.HTTPError(400)
+            raise web.HTTPError(404)
 
 
 class MongoDB(Configurable):
