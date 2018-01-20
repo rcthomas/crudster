@@ -244,10 +244,15 @@ class Crudster(Application):
         ], **self.settings)
 
 
-def main():
+def start_crudster():
     crudster = Crudster()
     crudster.initialize()
     crudster.start()
+    return crudster
+
+
+def main():
+    crudster = start_crudster()
     crudster.app.listen(crudster.port)
     ioloop.IOLoop.current().start()
 
