@@ -135,6 +135,8 @@ class CRUDRequestHandler(web.RequestHandler):
     @gen.coroutine
     def get_many_documents(self):
         """Retrieve a list of documents"""
+        # FIXME: skip, limit, sort, 
+        # http://motor.readthedocs.io/en/stable/tutorial-tornado.html#querying-for-more-than-one-document
 
         cursor = self.collection.find()
         documents = dict()
@@ -234,7 +236,7 @@ class Crudster(Application):
         self.db = self.client[self.mongodb.database_name]
 
         self.settings = dict(db=self.db,
-                collection_name=self.mongodb.collection_name, debug=True)
+                collection_name=self.mongodb.collection_name)
 
     def start(self):
         self.app = web.Application([ 
