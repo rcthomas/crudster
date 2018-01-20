@@ -244,8 +244,8 @@ class Crudster(Application):
         ], **self.settings)
 
 
-def start_crudster():
-    crudster = Crudster()
+def start_crudster(*args, **kwargs):
+    crudster = Crudster(*args, **kwargs)
     crudster.initialize()
     crudster.start()
     return crudster
