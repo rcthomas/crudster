@@ -1,6 +1,8 @@
 
 from datetime import datetime, timedelta
 import json
+import traceback
+from uuid import UUID, uuid4
 
 from bson import ObjectId
 
@@ -16,8 +18,8 @@ class _JSONEncoder(json.JSONEncoder):
     """Custom JSON encoder."""
 
     def default(self, obj):
-        if isinstance(obj, ObjectId):
-            return str(obj)
+        if isinstance(obj, UUID):
+            return obj.hex
         return json.JSONEncoder.default(self, obj)
 
 
@@ -88,18 +90,20 @@ class CRUDRequestHandler(web.RequestHandler):
             yield self.collection.create_index(*args, **kwargs)
 
     @gen.coroutine
-    def post(self, document_id):
+    def post(self, uuid):
         """Store new document"""
 
         # API determines document ID, not client.
 
-        if document_id:
+        if uuid:
             raise web.HTTPError(400)
+        uuid = uuid4()
 
         # Decode, validate, and insert document.
 
         document = self.decode_and_validate_document()
-        result = yield self.collection.insert_one(dict(document=document))
+        result = yield self.collection.insert_one(dict(document=document, 
+            uuid=uuid))
 
         # Create any indices.
 
@@ -107,22 +111,22 @@ class CRUDRequestHandler(web.RequestHandler):
 
         # Return inserted document ID for client future reference.
 
-        self.write_dict(document_id=result.inserted_id)
+        self.write_dict(uuid=uuid)
 
     @gen.coroutine
-    def get(self, document_id):
+    def get(self, uuid):
         """Retrieve stored documents"""
 
-        if document_id:
-            yield self.get_one_document(document_id)
+        if uuid:
+            yield self.get_one_document(uuid)
         else:
             yield self.get_many_documents()
 
     @gen.coroutine
-    def get_one_document(self, document_id):
+    def get_one_document(self, uuid):
         """Retrieve one document"""
 
-        result = yield self.collection.find_one({"_id": ObjectId(document_id)})
+        result = yield self.collection.find_one({"uuid": UUID(uuid)})
         if result:
             self.write_dict(result["document"])
         else:
@@ -136,23 +140,23 @@ class CRUDRequestHandler(web.RequestHandler):
         documents = dict()
         while (yield cursor.fetch_next):
             result = cursor.next_object()
-            documents[str(result["_id"])] = result["document"]
+            documents[result["uuid"].hex] = result["document"]
         self.write_dict(documents)
 
     @gen.coroutine
-    def put(self, document_id):
+    def put(self, uuid):
         """Replace existing document"""
 
         # Document ID is required.
 
-        if not document_id:
+        if not uuid:
             raise web.HTTPError(400)
 
         # Decode, validate, and replace document.
 
         document = self.decode_and_validate_document()
         result = yield self.collection.find_one_and_update(
-                {"_id": ObjectId(document_id)}, 
+                {"uuid": UUID(uuid)}, 
                 {"$set": dict(document=document)})
 
         # Return empty document.
@@ -160,12 +164,12 @@ class CRUDRequestHandler(web.RequestHandler):
         self.write_dict()
 
     @gen.coroutine
-    def delete(self, document_id):
+    def delete(self, uuid):
         """Delete document"""
 
         # Find document by ID and remove it.
 
-        result = yield self.collection.delete_one({"_id": ObjectId(document_id)})
+        result = yield self.collection.delete_one({"uuid": UUID(uuid)})
 
         # Return empty document if it succeeded.
 
@@ -227,11 +231,11 @@ class Crudster(Application):
         self.db = self.client[self.mongodb.database_name]
 
         self.settings = dict(db=self.db,
-                collection_name=self.mongodb.collection_name)
+                collection_name=self.mongodb.collection_name, debug=True)
 
     def start(self):
         self.app = web.Application([ 
-            (r"{}(\w*)".format(self.api_prefix), CRUDRequestHandler), 
+            (r"{}([0-9a-f]{{12}}4[0-9a-f]{{3}}[89ab][0-9a-f]{{15}})?".format(self.api_prefix), CRUDRequestHandler),
         ], **self.settings)
 
 
