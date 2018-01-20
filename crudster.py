@@ -28,7 +28,7 @@ class CRUDRequestHandler(web.RequestHandler):
         """Connect to document store"""
 
         self.db = self.settings["db"]
-        self.collection = self.db[self.__class__.__name__]
+        self.collection = self.db[self.settings["collection_name"]]
         self.index_args = self.settings.get("index_args", list())
 
     def write_json(self, document):
@@ -196,6 +196,8 @@ class MongoDB(Configurable):
 
 class Crudster(Application):
 
+    classes = [MongoDB]
+
     api_prefix = Unicode("/",
         help="API URL prefix"
     ).tag(config=True)
@@ -224,7 +226,8 @@ class Crudster(Application):
 
         self.db = self.client[self.mongodb.database_name]
 
-        self.settings = dict(db=self.db)
+        self.settings = dict(db=self.db,
+                collection_name=self.mongodb.collection_name)
 
     def start(self):
         self.app = web.Application([ 
@@ -238,6 +241,7 @@ def main():
     crudster.start()
     crudster.app.listen(crudster.port)
     ioloop.IOLoop.current().start()
+
 
 if __name__ == "__main__":
     main()
