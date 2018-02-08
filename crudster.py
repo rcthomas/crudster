@@ -5,13 +5,8 @@ import traceback
 from uuid import UUID, uuid4
 
 from bson import ObjectId
-
 from motor import motor_tornado
-
 from tornado import escape, gen, ioloop, web
-from traitlets.config.application import Application
-from traitlets.config.configurable import Configurable
-from traitlets import Int, Float, Unicode, Bool
 
 
 class _JSONEncoder(json.JSONEncoder):
@@ -184,76 +179,27 @@ class CRUDRequestHandler(web.RequestHandler):
             raise web.HTTPError(404)
 
 
-class MongoDB(Configurable):
+def create_crudster(api_prefix="/", collection_name="data",
+        database_name="crudster", handler=CRUDRequestHandler,
+        initialize_database=False, mongodb_uri="mongodb://127.0.0.1:27017"):
 
-    database_name = Unicode("crudster",
-        help="MongoDB database name"
-    ).tag(config=True)
+    client = motor_tornado.MotorClient(mongodb_uri)
 
-    collection_name = Unicode("data",
-        help="MongoDB database name"
-    ).tag(config=True)
+    if initialize_database:
+        client.drop_database(database_name)
 
-    uri = Unicode("mongodb://127.0.0.1:27017",
-        help="MongoDB server URI"
-    ).tag(config=True)
+    db = client[database_name]
 
-    initialize_database = Bool(False,
-        help="Clear any pre-existing database"
-    ).tag(config=True)
+    settings = dict(db=db, collection_name=collection_name)
 
-
-class Crudster(Application):
-
-    classes = [MongoDB]
-
-    api_prefix = Unicode("/",
-        help="API URL prefix"
-    ).tag(config=True)
-
-    description = Unicode("Simple CRUD REST API")
-    
-    name = Unicode("crudster")
-
-    port = Int(8888, 
-        help="Request handler port"
-    ).tag(config=True)
-
-    version = Unicode("0.0.1")
-
-    def init_mongodb(self):
-        self.mongodb = MongoDB(config=self.config)
-
-    def initialize(self, *args, **kwargs):
-        super().initialize(*args, **kwargs)
-        self.init_mongodb()
-
-        self.client = motor_tornado.MotorClient(self.mongodb.uri)
-
-        if self.mongodb.initialize_database:
-            self.client.drop_database(self.mongodb.database_name)
-
-        self.db = self.client[self.mongodb.database_name]
-
-        self.settings = dict(db=self.db,
-                collection_name=self.mongodb.collection_name)
-
-    def start(self):
-        self.app = web.Application([ 
-            (r"{}([0-9a-f]{{12}}4[0-9a-f]{{3}}[89ab][0-9a-f]{{15}})?".format(self.api_prefix), CRUDRequestHandler),
-        ], **self.settings)
+    return web.Application([
+        (r"{}([0-9a-f]{{12}}4[0-9a-f]{{3}}[89ab][0-9a-f]{{15}})?".format(api_prefix), handler),
+    ], **settings)
 
 
-def start_crudster(*args, **kwargs):
-    crudster = Crudster(*args, **kwargs)
-    crudster.initialize()
-    crudster.start()
-    return crudster
-
-
-def main():
-    crudster = start_crudster()
-    crudster.app.listen(crudster.port)
+def main(port=8888, **kwargs):
+    crudster = create_crudster(**kwargs)
+    crudster.listen(port)
     ioloop.IOLoop.current().start()
 
 
