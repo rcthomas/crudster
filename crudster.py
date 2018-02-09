@@ -1,4 +1,5 @@
 
+import argparse
 from datetime import datetime, timedelta
 import json
 import traceback
@@ -181,7 +182,8 @@ class CRUDRequestHandler(web.RequestHandler):
 
 def create_crudster(api_prefix="/", collection_name="data",
         database_name="crudster", handler=CRUDRequestHandler,
-        initialize_database=False, mongodb_uri="mongodb://127.0.0.1:27017"):
+        initialize_database=False, mongodb_uri="mongodb://127.0.0.1:27017",
+        **kwargs):
 
     client = motor_tornado.MotorClient(mongodb_uri)
 
@@ -197,9 +199,34 @@ def create_crudster(api_prefix="/", collection_name="data",
     ], **settings)
 
 
-def main(port=8888, **kwargs):
-    crudster = create_crudster(**kwargs)
-    crudster.listen(port)
+def parse_arguments():
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--api-prefix", "-a",
+            default="/",
+            help="application API prefix")
+    parser.add_argument("--collection-name", "-c",
+            default="data",
+            help="MongoDB collection name for document store")
+    parser.add_argument("--database-name", "-d",
+            default="crudster",
+            help="MongoDB database name for document store")
+    parser.add_argument("--initialize-database", "-i",
+            action="store_true",
+            help="whether to initialize/clear database at startup")
+    parser.add_argument("--mongodb-uri", "-m",
+            default="mongodb://127.0.0.1:27017",
+            help="MongoDB server URI")
+    parser.add_argument("--port", "-p",
+            default=8888,
+            help="port for API to listen on",
+            type=int)
+    return parser.parse_args()
+
+
+def main():
+    args = parse_arguments()
+    crud = create_crudster(**vars(args))
+    crud.listen(args.port)
     ioloop.IOLoop.current().start()
 
 
